@@ -96,14 +96,20 @@ def show_file_list(folder):
     window['-FILE LIST-'].update(fnames)
 # --------------------------------- The GUI ---------------------------------
 
-# First the window layout...2 columns
+# The image layout...3 columns
 
-left_col = [[sg.Text('Folder'), sg.In(size=(25,1), enable_events=True ,key='-FOLDER-'), sg.FolderBrowse(key="-FILEBROWSE-")], [sg.Button('Exit')],
-            [sg.Listbox(values=[], enable_events=True, size=(40,30),key='-FILE LIST-')]]
+original_col = [[sg.Text('Original')],[sg.Image(filename='', key='-IN-')]]
+gray_col = [[sg.Text('Gray')],[sg.Image(filename='', key='-OUTG-')]]
+colorized_col = [[sg.Text('Colorized')],[sg.Image(filename='', key='-OUTC-')]]
 
-images_col = [[sg.Image(filename='', key='-IN-'), sg.Image(filename='', key='-OUTG-'), sg.Image(filename='', key='-OUTC-')]]
+# The window layout...2 columns
+
+left_col = [[sg.Text('Folder'), sg.In(size=(25,1), enable_events=True ,key='-FOLDER-'), sg.FolderBrowse(key="-FILEBROWSE-")],
+            [sg.Listbox(values=[], enable_events=True, size=(40,30),key='-FILE LIST-')], [sg.Button('Exit')]]
+
+images_col = [[sg.Column(original_col), sg.Column(gray_col), sg.Column(colorized_col)]]
 # ----- Full layout -----
-layout = [[sg.Column(left_col), sg.VSeperator(), sg.Column(images_col)]]
+layout = [[sg.Column(left_col), sg.VSeperator(), sg.Column(images_col, vertical_alignment="t")]]
 
 # ----- Make the window -----
 window = sg.Window('Photo Colorizer', layout, grab_anywhere=True)
@@ -120,7 +126,6 @@ while True:
         folder = values['-FOLDER-']
         try:
             show_file_list(folder)
-            sg.popup_quick_message(folder, background_color='red', text_color='white', auto_close_duration=5, font='Any 16')
         except:
             continue
     elif event == '-FILE LIST-':    # A file was chosen from the listbox
