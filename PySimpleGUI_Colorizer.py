@@ -1,24 +1,9 @@
-"""
-    Colorization based on the Zhang Image Colorization Deep Learning Algorithm
-    This header to remain with this code.
-
-    The implementation of the colorization algorithm is from PyImageSearch
-    You can learn how the algorithm works and the details of this implementation here:
-    https://www.pyimagesearch.com/2019/02/25/black-and-white-image-colorization-with-opencv-and-deep-learning/
-
-    You will need to download the pre-trained data from this location and place in the model folder:
-    https://www.dropbox.com/s/dx0qvhhp5hbcx7z/colorization_release_v2.caffemodel?dl=1
-
-    GUI implemented in PySimpleGUI by the PySimpleGUI group
-    Of course, enjoy, learn , play, have fun!
-    Copyright 2019 PySimpleGUI
-"""
-
 from tkinter.constants import NONE
 import numpy as np
 import cv2
 import PySimpleGUI as sg
 import os.path
+from scipy import ndimage, signal, misc
 
 prototxt = r'model/colorization_deploy_v2.prototxt'
 model = r'model/colorization_release_v2.caffemodel'
@@ -78,6 +63,41 @@ def colorize_image(image_filename=None, cv2_frame=None):
     colorized = (255 * colorized).astype("uint8")
     return image, colorized
 
+def histograms(frame):
+    h, w, _ = frame.shape
+    #Separate the source image in its three R,G and B planes.c
+    bgr_planes = cv2.split(frame)
+    histSize = 256
+
+    histRange = (0, 256) # the upper boundary is exclusive
+
+    accumulate = False
+
+    b_hist = cv2.calcHist(bgr_planes, [0], None, [histSize], histRange, accumulate=accumulate)
+    g_hist = cv2.calcHist(bgr_planes, [1], None, [histSize], histRange, accumulate=accumulate)
+    r_hist = cv2.calcHist(bgr_planes, [2], None, [histSize], histRange, accumulate=accumulate)
+
+    hist_w = w
+    hist_h = h
+    bin_w = int(round( hist_w/histSize ))
+    histImage = np.zeros((hist_h, hist_w, 3), dtype=np.uint8)
+
+    cv2.normalize(b_hist, b_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX)
+    cv2.normalize(g_hist, g_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX)
+    cv2.normalize(r_hist, r_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX)
+
+    for i in range(1, histSize):
+        cv2.line(histImage, ( bin_w*(i-1), hist_h - int(b_hist[i-1]) ),
+                ( bin_w*(i), hist_h - int(b_hist[i]) ),
+                ( 255, 0, 0), thickness=2)
+        cv2.line(histImage, ( bin_w*(i-1), hist_h - int(g_hist[i-1]) ),
+                ( bin_w*(i), hist_h - int(g_hist[i]) ),
+                ( 0, 255, 0), thickness=2)
+        cv2.line(histImage, ( bin_w*(i-1), hist_h - int(r_hist[i-1]) ),
+                ( bin_w*(i), hist_h - int(r_hist[i]) ),
+                ( 0, 0, 255), thickness=2)
+
+    return histImage
 
 def convert_to_grayscale(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert webcam frame to grayscale
@@ -98,9 +118,9 @@ def show_file_list(folder):
 
 # The image layout...3 columns
 
-original_col = [[sg.Text('Original')],[sg.Image(filename='', key='-IN-')]]
-gray_col = [[sg.Text('Gray')],[sg.Image(filename='', key='-OUTG-')]]
-colorized_col = [[sg.Text('Colorized')],[sg.Image(filename='', key='-OUTC-')]]
+original_col = [[sg.Text('Original')],[sg.Image(filename='', key='-IN-')],[sg.Image(filename='', key='-HIST IN-')]]
+gray_col = [[sg.Text('Gray')],[sg.Image(filename='', key='-OUTG-')],[sg.Image(filename='', key='-HIST OUTG-')]]
+colorized_col = [[sg.Text('Colorized')],[sg.Image(filename='', key='-OUTC-')],[sg.Image(filename='', key='-HIST OUTC-')]]
 
 # The window layout...2 columns
 
@@ -132,14 +152,24 @@ while True:
         filename = os.path.join(values['-FOLDER-'], values['-FILE LIST-'][0])
         image = cv2.imread(filename)
         window['-IN-'].update(data=cv2.imencode('.png', image)[1].tobytes())
+        window['-HIST IN-'].update(data='')
         window['-OUTG-'].update(data='')
+        window['-HIST OUTG-'].update(data='')
         window['-OUTC-'].update(data='')
+        window['-HIST OUTC-'].update(data='')
 
+        histograms_original = histograms(image)
         gray_3_channels = convert_to_grayscale(image)
+        histograms_grayscale = histograms(gray_3_channels)
         image, colorized = colorize_image(cv2_frame=gray_3_channels)
+        histograms_colorized = histograms(colorized)
 
+        window['-HIST IN-'].update(data=cv2.imencode('.png', histograms_original)[1].tobytes())
         window['-OUTG-'].update(data=cv2.imencode('.png', gray_3_channels)[1].tobytes())
+        window['-HIST OUTG-'].update(data=cv2.imencode('.png', histograms_grayscale)[1].tobytes())
         window['-OUTC-'].update(data=cv2.imencode('.png', colorized)[1].tobytes())
+        window['-HIST OUTC-'].update(data=cv2.imencode('.png', histograms_colorized)[1].tobytes())
+
 
         try:
             gpath = r'images/gray/'
