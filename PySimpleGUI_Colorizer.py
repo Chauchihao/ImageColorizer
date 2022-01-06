@@ -3,7 +3,6 @@ import numpy as np
 import cv2
 import PySimpleGUI as sg
 import os.path
-from scipy import ndimage, signal, misc
 
 prototxt = r'model/colorization_deploy_v2.prototxt'
 model = r'model/colorization_release_v2.caffemodel'
@@ -63,6 +62,14 @@ def colorize_image(image_filename=None, cv2_frame=None):
     colorized = (255 * colorized).astype("uint8")
     return image, colorized
 
+def convert_to_grayscale(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert webcam frame to grayscale
+    gray_3_channels = np.zeros_like(frame)  # Convert grayscale frame (single channel) to 3 channels
+    gray_3_channels[:, :, 0] = gray
+    gray_3_channels[:, :, 1] = gray
+    gray_3_channels[:, :, 2] = gray
+    return gray_3_channels
+
 def histograms(frame):
     h, w, _ = frame.shape
     #Separate the source image in its three R,G and B planes.c
@@ -99,40 +106,70 @@ def histograms(frame):
 
     return histImage
 
-def convert_to_grayscale(frame):
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert webcam frame to grayscale
-    gray_3_channels = np.zeros_like(frame)  # Convert grayscale frame (single channel) to 3 channels
-    gray_3_channels[:, :, 0] = gray
-    gray_3_channels[:, :, 1] = gray
-    gray_3_channels[:, :, 2] = gray
-    return gray_3_channels
-
 def show_file_list(folder):
     img_types = (".png", ".jpg", "jpeg", ".tiff", ".bmp")
     # get list of files in folder
-    flist0 = os.listdir(folder)
-    fnames = [f for f in flist0 if os.path.isfile(
-        os.path.join(folder, f)) and f.lower().endswith(img_types)]
-    window['-FILE LIST-'].update(fnames)
+    file_list = os.listdir(folder)
+    filenames = [file for file in file_list if os.path.isfile(
+        os.path.join(folder, file)) and file.lower().endswith(img_types)]
+    window['-FILE LIST-'].update(filenames)
+    return filenames
+
+def show_image(key, image):
+    window[key].update(data=cv2.imencode('.png', image)[1].tobytes())
+
+def convert_image(original):
+    show_image('-IN-', original)
+    histograms_original = histograms(original)
+    show_image('-HIST IN-', histograms_original)
+
+    gray_3_channels = convert_to_grayscale(original)
+    show_image('-OUTG-', gray_3_channels)
+    histograms_grayscale = histograms(gray_3_channels)
+    show_image('-HIST OUTG-', histograms_grayscale)
+
+    image, colorized = colorize_image(cv2_frame=gray_3_channels)
+    show_image('-OUTC-', colorized)
+    histograms_colorized = histograms(colorized)
+    show_image('-HIST OUTC-', histograms_colorized)
+
+    return gray_3_channels, colorized
+
+def save_file_list(filenames):
+    sg.PopupAnimated(sg.DEFAULT_BASE64_LOADING_GIF, background_color='red',text_color='white', time_between_frames=100, message="Loading GIF")
+    for file in filenames:
+        path = os.path.join(r'images/original/', file)
+        original = cv2.imread(path)
+        gray_3_channels, colorized = convert_image(original)
+        save_file(r'images/gray/', gray_3_channels, file)
+        save_file(r'images/colorized/', colorized, file)
+    sg.popup_quick_message('Save complete!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
+    sg.PopupAnimated(None)
+
+def save_file(path, file, value):
+    filename = os.path.join(path, value)
+    cv2.imwrite(filename, file)
 # --------------------------------- The GUI ---------------------------------
+sg.theme('Black')
+windoww, windowh = sg.Window.get_screen_size()
 
 # The image layout...3 columns
 
-original_col = [[sg.Text('Original')],[sg.Image(filename='', key='-IN-')],[sg.Image(filename='', key='-HIST IN-')]]
+original_col = [[sg.Text('Original')],[sg.Image(filename='', key='-IN-', expand_x=True, expand_y=True)],[sg.Image(filename='', key='-HIST IN-')]]
 gray_col = [[sg.Text('Gray')],[sg.Image(filename='', key='-OUTG-')],[sg.Image(filename='', key='-HIST OUTG-')]]
 colorized_col = [[sg.Text('Colorized')],[sg.Image(filename='', key='-OUTC-')],[sg.Image(filename='', key='-HIST OUTC-')]]
 
 # The window layout...2 columns
 
-left_col = [[sg.Text('Folder'), sg.In(size=(25,1), enable_events=True ,key='-FOLDER-'), sg.FolderBrowse(key="-FILEBROWSE-")],
-            [sg.Listbox(values=[], enable_events=True, size=(40,30),key='-FILE LIST-')], [sg.Button('Exit')]]
+left_col = [[sg.Text('Folder'), sg.In(size=(35,1), enable_events=True ,key='-FOLDER-'), sg.FolderBrowse(key='-FILEBROWSE-')],
+            [sg.Listbox(values=[], enable_events=True, size=(50,40),key='-FILE LIST-')], [sg.Button('Exit')]]
 
 images_col = [[sg.Column(original_col), sg.Column(gray_col), sg.Column(colorized_col)]]
 # ----- Full layout -----
-layout = [[sg.Column(left_col), sg.VSeperator(), sg.Column(images_col, vertical_alignment="t")]]
+layout = [[sg.Column(left_col, size=(windoww * 0.25, windowh - 65)), sg.VSeperator(), sg.Column(images_col, vertical_alignment="t", size=(windoww * 0.85, windowh - 65))]]
 
 # ----- Make the window -----
-window = sg.Window('Photo Colorizer', layout, grab_anywhere=True)
+window = sg.Window('Photo Colorizer', layout, grab_anywhere=True, size=(windoww, windowh - 65),location=(-8,0))
 
 # ----- Run the Event Loop -----
 prev_filename = colorized = cap = None
@@ -145,43 +182,23 @@ while True:
     if event == '-FOLDER-':         # Folder name was filled in, make a list of files in the folder
         folder = values['-FOLDER-']
         try:
-            show_file_list(folder)
+            filenames = show_file_list(folder)
+            save_file_list(filenames)
         except:
             continue
     elif event == '-FILE LIST-':    # A file was chosen from the listbox
-        filename = os.path.join(values['-FOLDER-'], values['-FILE LIST-'][0])
-        image = cv2.imread(filename)
-        window['-IN-'].update(data=cv2.imencode('.png', image)[1].tobytes())
-        window['-HIST IN-'].update(data='')
-        window['-OUTG-'].update(data='')
-        window['-HIST OUTG-'].update(data='')
-        window['-OUTC-'].update(data='')
-        window['-HIST OUTC-'].update(data='')
+        try: 
+            filename = os.path.join(values['-FOLDER-'], values['-FILE LIST-'][0])
+            original = cv2.imread(filename)
+            window['-IN-'].update(data=cv2.imencode('.png', original)[1].tobytes())
+            window['-HIST IN-'].update(data='')
+            window['-OUTG-'].update(data='')
+            window['-HIST OUTG-'].update(data='')
+            window['-OUTC-'].update(data='')
+            window['-HIST OUTC-'].update(data='')
 
-        histograms_original = histograms(image)
-        gray_3_channels = convert_to_grayscale(image)
-        histograms_grayscale = histograms(gray_3_channels)
-        image, colorized = colorize_image(cv2_frame=gray_3_channels)
-        histograms_colorized = histograms(colorized)
-
-        window['-HIST IN-'].update(data=cv2.imencode('.png', histograms_original)[1].tobytes())
-        window['-OUTG-'].update(data=cv2.imencode('.png', gray_3_channels)[1].tobytes())
-        window['-HIST OUTG-'].update(data=cv2.imencode('.png', histograms_grayscale)[1].tobytes())
-        window['-OUTC-'].update(data=cv2.imencode('.png', colorized)[1].tobytes())
-        window['-HIST OUTC-'].update(data=cv2.imencode('.png', histograms_colorized)[1].tobytes())
-
-
-        try:
-            gpath = r'images/gray/'
-            gfilename = os.path.join(gpath, values['-FILE LIST-'][0])
-            cv2.imwrite(gfilename, gray_3_channels)
-
-            cpath = r'images/colorized/'
-            cfilename = os.path.join(cpath, values['-FILE LIST-'][0])
-            cv2.imwrite(cfilename, colorized)
-
-            sg.popup_quick_message(gfilename + ' save complete!\n' + cfilename + ' save complete!', background_color='red', text_color='white', auto_close_duration=5, font='Any 16')
+            gray_3_channels, colorized = convert_image(original)
         except:
-            sg.popup_quick_message('ERROR - Image NOT saved!!!', background_color='red', text_color='white', auto_close_duration=5, font='Any 16')
+            sg.popup_quick_message('ERROR - File NOT found!!!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
 # ----- Exit program -----
 window.close()
