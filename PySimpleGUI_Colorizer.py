@@ -14,7 +14,7 @@ if not os.path.isfile(model):
     sg.popup_scrolled('Missing model file', 'You are missing the file "colorization_release_v2.caffemodel"',
                       'Download it and place into your "model" folder', 'You can download this file from this location:\n', r'https://www.dropbox.com/s/dx0qvhhp5hbcx7z/colorization_release_v2.caffemodel?dl=1')
     exit()
-net = cv2.dnn.readNetFromCaffe(prototxt, model)     # load model from disk
+net = cv2.dnn.readNetFromCaffe(prototxt, model)     #load model from disk
 pts = np.load(points)
 
 # add the cluster centers as 1x1 convolutions to the model
@@ -136,15 +136,16 @@ def convert_image(original):
     return gray_3_channels, colorized
 
 def save_file_list(filenames):
-    sg.PopupAnimated(sg.DEFAULT_BASE64_LOADING_GIF, background_color='red',text_color='white', time_between_frames=100, message="Loading GIF")
+    sg.popup_quick_message('Converting and saving images ...', background_color='red',text_color='white', font='Any 16')
     for file in filenames:
         path = os.path.join(r'images/original/', file)
         original = cv2.imread(path)
         gray_3_channels, colorized = convert_image(original)
         save_file(r'images/gray/', gray_3_channels, file)
         save_file(r'images/colorized/', colorized, file)
+    sg.popup_quick_message(None)
     sg.popup_quick_message('Save complete!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
-    sg.PopupAnimated(None)
+    
 
 def save_file(path, file, value):
     filename = os.path.join(path, value)
@@ -155,7 +156,7 @@ windoww, windowh = sg.Window.get_screen_size()
 
 # The image layout...3 columns
 
-original_col = [[sg.Text('Original')],[sg.Image(filename='', key='-IN-', expand_x=True, expand_y=True)],[sg.Image(filename='', key='-HIST IN-')]]
+original_col = [[sg.Text('Original')],[sg.Image(filename='', key='-IN-')],[sg.Image(filename='', key='-HIST IN-')]]
 gray_col = [[sg.Text('Gray')],[sg.Image(filename='', key='-OUTG-')],[sg.Image(filename='', key='-HIST OUTG-')]]
 colorized_col = [[sg.Text('Colorized')],[sg.Image(filename='', key='-OUTC-')],[sg.Image(filename='', key='-HIST OUTC-')]]
 
@@ -172,7 +173,6 @@ layout = [[sg.Column(left_col, size=(windoww * 0.25, windowh - 65)), sg.VSeperat
 window = sg.Window('Photo Colorizer', layout, grab_anywhere=True, size=(windoww, windowh - 65),location=(-8,0))
 
 # ----- Run the Event Loop -----
-prev_filename = colorized = cap = None
 
 while True:
     event, values = window.read()
@@ -190,14 +190,8 @@ while True:
         try: 
             filename = os.path.join(values['-FOLDER-'], values['-FILE LIST-'][0])
             original = cv2.imread(filename)
-            window['-IN-'].update(data=cv2.imencode('.png', original)[1].tobytes())
-            window['-HIST IN-'].update(data='')
-            window['-OUTG-'].update(data='')
-            window['-HIST OUTG-'].update(data='')
-            window['-OUTC-'].update(data='')
-            window['-HIST OUTC-'].update(data='')
 
-            gray_3_channels, colorized = convert_image(original)
+            convert_image(original)
         except:
             sg.popup_quick_message('ERROR - File NOT found!!!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
 # ----- Exit program -----
