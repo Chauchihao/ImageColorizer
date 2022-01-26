@@ -118,20 +118,20 @@ def show_file_list(folder):
 def show_image(key, image):
     window[key].update(data=cv2.imencode('.png', image)[1].tobytes())
 
-def convert_image(original):
-    show_image('-IN-', original)
+def convert_image(original, w, h):
+    show_image('-IN-', cv2.resize(original, (w, h)))
     histograms_original = histograms(original)
-    show_image('-HIST IN-', histograms_original)
+    show_image('-HIST IN-', cv2.resize(histograms_original, (w, h)))
 
     gray_3_channels = convert_to_grayscale(original)
-    show_image('-OUTG-', gray_3_channels)
+    show_image('-OUTG-', cv2.resize(gray_3_channels, (w, h)))
     histograms_grayscale = histograms(gray_3_channels)
-    show_image('-HIST OUTG-', histograms_grayscale)
+    show_image('-HIST OUTG-', cv2.resize(histograms_grayscale, (w, h)))
 
     image, colorized = colorize_image(cv2_frame=gray_3_channels)
-    show_image('-OUTC-', colorized)
+    show_image('-OUTC-', cv2.resize(colorized, (w, h)))
     histograms_colorized = histograms(colorized)
-    show_image('-HIST OUTC-', histograms_colorized)
+    show_image('-HIST OUTC-', cv2.resize(histograms_colorized, (w, h)))
 
     return gray_3_channels, colorized
 
@@ -140,7 +140,7 @@ def save_file_list(filenames):
     for file in filenames:
         path = os.path.join(r'images/original/', file)
         original = cv2.imread(path)
-        gray_3_channels, colorized = convert_image(original)
+        gray_3_channels, colorized = convert_image(original, w, h)
         save_file(r'images/gray/', gray_3_channels, file)
         save_file(r'images/colorized/', colorized, file)
     sg.popup_quick_message(None)
@@ -173,7 +173,8 @@ layout = [[sg.Column(left_col, size=(windoww * 0.25, windowh - 65)), sg.VSeperat
 window = sg.Window('Photo Colorizer', layout, grab_anywhere=True, size=(windoww, windowh - 65),location=(-8,0))
 
 # ----- Run the Event Loop -----
-
+w = int(windoww*0.2)
+h = int(windowh*0.35) 
 while True:
     event, values = window.read()
     
@@ -191,7 +192,7 @@ while True:
             filename = os.path.join(values['-FOLDER-'], values['-FILE LIST-'][0])
             original = cv2.imread(filename)
 
-            convert_image(original)
+            convert_image(original, w, h)
         except:
             sg.popup_quick_message('ERROR - File NOT found!!!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
 # ----- Exit program -----
