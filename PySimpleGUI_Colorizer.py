@@ -60,7 +60,7 @@ def colorize_image(image_filename=None, cv2_frame=None):
 
     # the current colorized image is represented as a floating point data type in the range [0, 1] -- let's convert to an unsigned 8-bit integer representation in the range [0, 255]
     colorized = (255 * colorized).astype("uint8")
-    return image, colorized
+    return colorized
 
 def convert_to_grayscale(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert webcam frame to grayscale
@@ -115,41 +115,25 @@ def show_file_list(folder):
     window['-FILE LIST-'].update(filenames)
     return filenames
 
-def show_image(key, image):
-    window[key].update(data=cv2.imencode('.png', image)[1].tobytes())
-
-def convert_image(original, w, h):
-    show_image('-IN-', cv2.resize(original, (w, h)))
-    histograms_original = histograms(original)
-    show_image('-HIST IN-', cv2.resize(histograms_original, (w, h)))
-
+def convert_image(original):
     gray_3_channels = convert_to_grayscale(original)
-    show_image('-OUTG-', cv2.resize(gray_3_channels, (w, h)))
-    histograms_grayscale = histograms(gray_3_channels)
-    show_image('-HIST OUTG-', cv2.resize(histograms_grayscale, (w, h)))
-
-    image, colorized = colorize_image(cv2_frame=gray_3_channels)
-    show_image('-OUTC-', cv2.resize(colorized, (w, h)))
-    histograms_colorized = histograms(colorized)
-    show_image('-HIST OUTC-', cv2.resize(histograms_colorized, (w, h)))
+    colorized = colorize_image(cv2_frame=gray_3_channels)
 
     return gray_3_channels, colorized
 
 def save_file_list(filenames):
-    sg.popup_quick_message('Converting and saving images ...', background_color='red',text_color='white', font='Any 16')
     for file in filenames:
-        path = os.path.join(r'images/original/', file)
-        original = cv2.imread(path)
-        gray_3_channels, colorized = convert_image(original, w, h)
-        save_file(r'images/gray/', gray_3_channels, file)
-        save_file(r'images/colorized/', colorized, file)
-    sg.popup_quick_message(None)
-    sg.popup_quick_message('Save complete!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
+        opath = os.path.join(r'images/original/', file)
+        gpath = os.path.join(r'images/gray/', file)
+        cpath = os.path.join(r'images/colorized/', file)
+        if not os.path.isfile(gpath) and not os.path.isfile(cpath):
+            original = cv2.imread(opath)
+            gray_3_channels, colorized = convert_image(original)
+            cv2.imwrite(gpath ,gray_3_channels)
+            cv2.imwrite(cpath ,colorized)
+    sg.popup_quick_message('Convert and save complete!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
     
 
-def save_file(path, file, value):
-    filename = os.path.join(path, value)
-    cv2.imwrite(filename, file)
 # --------------------------------- The GUI ---------------------------------
 sg.theme('Black')
 windoww, windowh = sg.Window.get_screen_size()
@@ -172,9 +156,10 @@ layout = [[sg.Column(left_col, size=(windoww * 0.25, windowh - 65)), sg.VSeperat
 # ----- Make the window -----
 window = sg.Window('Photo Colorizer', layout, grab_anywhere=True, size=(windoww, windowh - 65),location=(-8,0))
 
-# ----- Run the Event Loop -----
+# ----- Run the Event Loop ----- 
 w = int(windoww*0.2)
-h = int(windowh*0.35) 
+h = int(windowh*0.35)
+
 while True:
     event, values = window.read()
     
@@ -189,10 +174,24 @@ while True:
             continue
     elif event == '-FILE LIST-':    # A file was chosen from the listbox
         try: 
-            filename = os.path.join(values['-FOLDER-'], values['-FILE LIST-'][0])
-            original = cv2.imread(filename)
+            opath = os.path.join(values['-FOLDER-'], values['-FILE LIST-'][0])
+            gpath = os.path.join(r'images/gray/', values['-FILE LIST-'][0])
+            cpath = os.path.join(r'images/colorized/', values['-FILE LIST-'][0])
 
-            convert_image(original, w, h)
+            original = cv2.imread(opath)
+            gray_3_channels = cv2.imread(gpath)
+            colorized = cv2.imread(cpath)
+
+            histograms_original = histograms(original)
+            histograms_grayscale = histograms(gray_3_channels)
+            histograms_colorized = histograms(colorized)
+
+            window['-IN-'].update(data=cv2.imencode('.png', cv2.resize(original, (w, h)))[1].tobytes())
+            window['-OUTG-'].update(data=cv2.imencode('.png', cv2.resize(gray_3_channels, (w, h)))[1].tobytes())
+            window['-OUTC-'].update(data=cv2.imencode('.png', cv2.resize(colorized, (w, h)))[1].tobytes())
+            window['-HIST IN-'].update(data=cv2.imencode('.png', cv2.resize(histograms_original, (w, h)))[1].tobytes())
+            window['-HIST OUTG-'].update(data=cv2.imencode('.png', cv2.resize(histograms_grayscale, (w, h)))[1].tobytes())
+            window['-HIST OUTC-'].update(data=cv2.imencode('.png', cv2.resize(histograms_colorized, (w, h)))[1].tobytes())
         except:
             sg.popup_quick_message('ERROR - File NOT found!!!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
 # ----- Exit program -----
