@@ -1,5 +1,3 @@
-from fileinput import filename
-from pickle import TRUE
 from tkinter.constants import NONE
 import numpy as np
 import cv2
