@@ -1,3 +1,5 @@
+from fileinput import filename
+from pickle import TRUE
 from tkinter.constants import NONE
 import numpy as np
 import cv2
@@ -121,9 +123,10 @@ def convert_image(original):
 
     return gray_3_channels, colorized
 
-def save_file_list(filenames):
+def save_file_list(filenames, folder):
+    temp = False
     for file in filenames:
-        opath = os.path.join(r'images/original/', file)
+        opath = os.path.join(folder, file)
         gpath = os.path.join(r'images/gray/', file)
         cpath = os.path.join(r'images/colorized/', file)
         if not os.path.isfile(gpath) and not os.path.isfile(cpath):
@@ -131,7 +134,11 @@ def save_file_list(filenames):
             gray_3_channels, colorized = convert_image(original)
             cv2.imwrite(gpath ,gray_3_channels)
             cv2.imwrite(cpath ,colorized)
-    sg.popup_quick_message('Convert and save complete!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
+            temp = True
+    if (temp == False):
+        sg.popup_quick_message('No new pictures to convert!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
+    else:
+        sg.popup_quick_message('Convert and save complete!', background_color='red', text_color='white', auto_close_duration=7, font='Any 16')
     
 
 # --------------------------------- The GUI ---------------------------------
@@ -169,7 +176,7 @@ while True:
         folder = values['-FOLDER-']
         try:
             filenames = show_file_list(folder)
-            save_file_list(filenames)
+            save_file_list(filenames, folder)
         except:
             continue
     elif event == '-FILE LIST-':    # A file was chosen from the listbox
